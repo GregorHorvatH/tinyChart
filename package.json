@@ -1,0 +1,27 @@
+{
+  "name": "tinychart",
+  "version": "1.0.0",
+  "description": "tinyChart.js is an open-source library (it's available on GitHub) that helps you easily visualize data using JavaScript. It supports only responsive line chart for now.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GregorHorvatH/tinyChart.git"
+  },
+  "keywords": [
+    "chart",
+    "line",
+    "js",
+    "javascript",
+    "tiny",
+    "small"
+  ],
+  "author": "Gergel Gorvat",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/GregorHorvatH/tinyChart/issues"
+  },
+  "homepage": "https://github.com/GregorHorvatH/tinyChart#readme"
+}

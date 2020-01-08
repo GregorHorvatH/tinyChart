@@ -4,6 +4,22 @@ class Chart {
       throw new Error('Chart selector is mandatory, e.g. "#tinyChart"');
     }
 
+    // constants
+    this.DEFAULT_HEIGHT = 250;
+    this.MARGIN_LEFT = 55;
+    this.MARGIN_RIGHT = 10;
+    this.MARGIN_TOP = 15;
+    this.MARGIN_BOTTOM = 60;
+    
+    this.linesY = 4;
+    this.linesX = 7;
+  
+    this.minY = 0;
+    this.maxY = 0;
+
+    this.recX1 = 0;
+    this.recX2 = 0;
+
     // set variables
     this.rawPoints = points;
     this.options = options;
@@ -13,18 +29,8 @@ class Chart {
     this.background = document.createElement('canvas');
     this.backgroundCtx = this.background.getContext('2d');
     this.parent.appendChild(this.background);
-
-    this.DEFAULT_HEIGHT = 350;
-    this.MARGIN_LEFT = 55;
-    this.MARGIN_RIGHT = 10;
-    this.MARGIN_TOP = 15;
-    this.MARGIN_BOTTOM = 20;
-    
-    this.linesY = 8;
-    this.linesX = 7;
-  
-    this.minY = 0;
-    this.maxY = 0;
+    this.clientRect = this.background.getBoundingClientRect();
+    this.isPressed = false;
 
     // init
     this.setBackgroundSize();
@@ -40,10 +46,61 @@ class Chart {
 
       this.points = this.calcPoints(this.rawPoints);
       this.draw(this.backgroundCtx, this.points, this.colors);
-      });
+    });
+
+    this.background.addEventListener('mousedown', this.onMouseDown);
+    this.background.addEventListener('mousemove', this.onMouseMove);
+    this.background.addEventListener('mouseup', this.onMouseUp);
+
+    this.background.addEventListener('touchstart', this.onTouchStart);
+    this.background.addEventListener('touchmove', this.onTouchMove);
+    this.background.addEventListener('touchend', this.onMouseUp);
   }
 
-  setBackgroundSize() {
+  onMouseDown = ({ clientX }) => {
+    this.isPressed = true;
+    this.recX1 = ~~clientX - this.clientRect.left;
+    this.recX1 = this.recX1 < this.MARGIN_LEFT
+      ? this.MARGIN_LEFT
+      : this.recX1;
+    this.recX1 = this.recX1 > this.ctxWidth - this.MARGIN_RIGHT
+      ? this.ctxWidth - this.MARGIN_RIGHT
+      : this.recX1;
+    this.recX2 = this.recX1;
+  }
+
+  onMouseUp = () => {
+    this.isPressed = false;
+  }
+
+  onMouseMove = ({ clientX }) => {
+    if (this.isPressed) {
+      this.recX2 = ~~clientX - this.clientRect.left;
+      this.recX2 = this.recX2 < this.MARGIN_LEFT
+        ? this.MARGIN_LEFT
+        : this.recX2;
+      this.recX2 = this.recX2 > this.ctxWidth - this.MARGIN_RIGHT
+      ? this.ctxWidth - this.MARGIN_RIGHT
+      : this.recX2;
+
+      this.drawBackground();
+      this.draw(this.backgroundCtx, this.points, this.colors);
+      this.drawSelector();
+    }
+  }
+
+  onTouchStart = ({ touches }) => {
+    this.isPressed = true;
+    this.onMouseDown({ clientX: touches[0].clientX });
+  }
+
+  onTouchMove = ({ touches }) => {
+    if (this.isPressed) {
+      this.onMouseMove({ clientX: touches[0].clientX });
+    }
+  }
+
+  setBackgroundSize = () => {
     this.width = (this.options.width || this.parent.clientWidth) * this.ratio;
     this.height = (this.options.height || this.DEFAULT_HEIGHT) * this.ratio;
     this.ctxWidth = this.width / this.ratio;
@@ -51,22 +108,30 @@ class Chart {
 
     this.background.style.width = `${this.parent.clientWidth}px`;
     this.background.style.height = `${this.DEFAULT_HEIGHT}px`;
+    // this.background.style.border = '1px solid black';
 
     this.background.setAttribute('width', this.width);
     this.background.setAttribute('height', this.height);
     this.backgroundCtx.scale(this.ratio, this.ratio);
   }
 
-  drawBackground() {
+  drawBackground = () => {
     this.stepX = (this.ctxWidth - this.MARGIN_LEFT - this.MARGIN_RIGHT) / (this.linesX - 1);
     this.stepY = (this.ctxHeight - this.MARGIN_TOP - this.MARGIN_BOTTOM) / (this.linesY - 1);
 
+    // clean context
+    this.backgroundCtx.clearRect(0, 0, this.ctxWidth, this.ctxHeight);
+
     // vertical description
+    const textX = (this.DEFAULT_HEIGHT - this.MARGIN_BOTTOM) / -2;
+    const textY = this.MARGIN_LEFT - 39;
+
+    this.backgroundCtx.fillStyle = '#000';
     this.backgroundCtx.save();
     this.backgroundCtx.rotate(270 * Math.PI / 180);
     this.backgroundCtx.textAlign = 'center';
     this.backgroundCtx.font = "20px sans-serif";
-    this.backgroundCtx.fillText('Temperature °C', this.DEFAULT_HEIGHT / 2 * - 1, this.MARGIN_LEFT - 40);
+    this.backgroundCtx.fillText('Temperature °C', textX, textY);
     this.backgroundCtx.restore();
 
     // horizontal lines
@@ -95,7 +160,22 @@ class Chart {
     }
   }
 
-  calcPoints(points) {
+  drawSelector = () => {
+    this.backgroundCtx.beginPath();
+    this.backgroundCtx.fillStyle = 'rgba(0, 0, 255, .1)';
+    this.backgroundCtx.fillRect(
+      this.recX1,
+      this.MARGIN_TOP,
+      this.recX2 - this.recX1,
+      this.ctxHeight - this.MARGIN_BOTTOM - this.MARGIN_TOP
+    );
+    this.backgroundCtx.stroke();
+    this.backgroundCtx.closePath();
+
+    // console.log('selector', this.recX1, this.recX2);
+  }
+
+  calcPoints = (points) => {
     const newPoints = [];
     const xRange = points[points.length - 1].time - points[0].time;
 
@@ -132,7 +212,7 @@ class Chart {
     return newPoints;
   }
 
-  draw(ctx, points, color) {
+  draw = (ctx, points, color) => {
     // draw lines
     ctx.lineWidth = 1;
     for (let i = 0; i < points[0].y.length; i++) {
@@ -159,37 +239,56 @@ class Chart {
       });
     });
 
-    ctx.beginPath();
     ctx.strokeStyle = '#000';
     ctx.fillStyle = '#000';
 
     // y data
+    ctx.beginPath();
     const stepYValue = (this.maxY - this.minY) / this.linesY;
     for (let i = 0; i < this.linesY; i++) {
       const text = ~~(this.minY + stepYValue * i);
-      this.backgroundCtx.fillText(`${text}°C`, this.MARGIN_LEFT - 30, this.ctxHeight - this.MARGIN_BOTTOM - this.stepY * i);
+      ctx.fillText(`${text}°C`, this.MARGIN_LEFT - 30, this.ctxHeight - this.MARGIN_BOTTOM - this.stepY * i);
     }
+    ctx.stroke();
+    ctx.closePath();
 
     // x data
     const stepXValue = (points[points.length - 1].time - points[0].time) / this.linesX;
     for (let i = 0; i < this.linesX; i ++) {
       const date = new Date(points[0].time + ~~(stepXValue * i));
-      this.backgroundCtx.fillText(this.formatDate(date), this.MARGIN_LEFT + i * this.stepX, this.ctxHeight - this.MARGIN_BOTTOM + 15);
+      ctx.save();
+      ctx.beginPath();
+      ctx.translate(this.MARGIN_LEFT - 35 + (i * this.stepX), this.ctxHeight);
+      ctx.rotate(300 * Math.PI / 180);
+      ctx.fillText(this.formatDate(date, true), 0, 0);
+      ctx.fillText(this.formatDate(date, false), 25, 12);
+      ctx.stroke();
+      ctx.closePath();
+      ctx.restore();    
     }
-
-    ctx.stroke();
-    ctx.closePath();
   }
 
-  formatDate(date) {
+  /**
+   * Formatting timestamp to date or time
+   * @param {timestamp} date
+   * @param {boolean} isDate: true - date, false - time
+   */
+  formatDate = (date, isDate = true) => {
     const year = date.getFullYear();
     const month = date.getMonth();
     const day = date.getDate();
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
-    const seconds = date.getSeconds();
+    let hours = date.getHours();
+    let minutes = date.getMinutes();
+    let seconds = date.getSeconds();
 
-    return `${year}/${month}/${day} ${hours}:${minutes}:${seconds}`;
+    hours = hours < 10 ? '0' + hours : hours;
+    minutes = minutes < 10 ? '0' + minutes : minutes;
+    seconds = seconds < 10 ? '0' + seconds : seconds;
+
+    // return ;
+    return isDate
+      ? `${year}/${month}/${day}`
+      : `${hours}:${minutes}:${seconds}`;
   }
 }
 

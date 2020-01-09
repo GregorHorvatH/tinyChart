@@ -10,51 +10,57 @@ class Chart {
     this.MARGIN_RIGHT = 10;
     this.MARGIN_TOP = 15;
     this.MARGIN_BOTTOM = 60;
-    
-    this.linesY = 4;
-    this.linesX = 7;
-  
-    this.minY = 0;
-    this.maxY = 0;
-
-    this.recX1 = 0;
-    this.recX2 = 0;
 
     // set variables
     this.rawPoints = points;
     this.options = options;
     this.colors = options.colors || ['#ffbf96', '#4d50ab', '#47915a'];
     this.ratio = window.devicePixelRatio || 1;
+    this.canvas = document.createElement('canvas');
+    this.ctx = this.canvas.getContext('2d');
+
+    const buttonWrapper = document.createElement('div');
+    const chartWrapper = document.createElement('div');
+    const resetButton = document.createElement('button');
+    resetButton.innerText = 'Reset';
+    buttonWrapper.appendChild(resetButton);
+    chartWrapper.appendChild(this.canvas);
+
     this.parent = document.querySelector(selector);
-    this.background = document.createElement('canvas');
-    this.backgroundCtx = this.background.getContext('2d');
-    this.parent.appendChild(this.background);
-    this.clientRect = this.background.getBoundingClientRect();
+    this.parent.appendChild(buttonWrapper);
+    this.parent.appendChild(chartWrapper);
+
+    this.clientRect = this.canvas.getBoundingClientRect();
+
     this.isPressed = false;
+    this.zoom = false;
+
+    this.linesY = 4;
+    this.linesX = 7;
+  
+    this.recX1 = 0;
+    this.recX2 = 0;
+
+    // set styles
+    buttonWrapper.style.display = 'flex';
+    buttonWrapper.style.flexDirection = 'column';
+    resetButton.style.marginRight = `${this.MARGIN_RIGHT}px`;
 
     // init
-    this.setBackgroundSize();
-    this.drawBackground();
-
-    this.points = this.calcPoints(this.rawPoints);
-    this.draw(this.backgroundCtx, this.points, this.colors);
+    this.draw();
 
     // event listeners
-    window.addEventListener('resize', () => {
-      this.setBackgroundSize();
-      this.drawBackground();
+    window.addEventListener('resize', this.draw);
 
-      this.points = this.calcPoints(this.rawPoints);
-      this.draw(this.backgroundCtx, this.points, this.colors);
-    });
+    this.canvas.addEventListener('mousedown', this.onMouseDown);
+    this.canvas.addEventListener('mousemove', this.onMouseMove);
+    this.canvas.addEventListener('mouseup', this.onMouseUp);
 
-    this.background.addEventListener('mousedown', this.onMouseDown);
-    this.background.addEventListener('mousemove', this.onMouseMove);
-    this.background.addEventListener('mouseup', this.onMouseUp);
+    this.canvas.addEventListener('touchstart', this.onTouchStart);
+    this.canvas.addEventListener('touchmove', this.onTouchMove);
+    this.canvas.addEventListener('touchend', this.onMouseUp);
 
-    this.background.addEventListener('touchstart', this.onTouchStart);
-    this.background.addEventListener('touchmove', this.onTouchMove);
-    this.background.addEventListener('touchend', this.onMouseUp);
+    resetButton.addEventListener('click', this.resetPoints);
   }
 
   onMouseDown = ({ clientX }) => {
@@ -71,6 +77,9 @@ class Chart {
 
   onMouseUp = () => {
     this.isPressed = false;
+    this.zoom = true;
+    this.filterPoints();
+    this.draw();
   }
 
   onMouseMove = ({ clientX }) => {
@@ -84,7 +93,7 @@ class Chart {
       : this.recX2;
 
       this.drawBackground();
-      this.draw(this.backgroundCtx, this.points, this.colors);
+      this.draw(this.ctx, this.points, this.colors);
       this.drawSelector();
     }
   }
@@ -100,19 +109,26 @@ class Chart {
     }
   }
 
+  draw = () => {
+    this.setBackgroundSize();
+    this.drawBackground();
+
+    this.points = this.calcPoints(this.zoom ? this.points : this.rawPoints);
+    this.drawChart();
+  }
+
   setBackgroundSize = () => {
     this.width = (this.options.width || this.parent.clientWidth) * this.ratio;
     this.height = (this.options.height || this.DEFAULT_HEIGHT) * this.ratio;
     this.ctxWidth = this.width / this.ratio;
     this.ctxHeight = this.height / this.ratio;
 
-    this.background.style.width = `${this.parent.clientWidth}px`;
-    this.background.style.height = `${this.DEFAULT_HEIGHT}px`;
-    // this.background.style.border = '1px solid black';
+    this.canvas.style.width = `${this.parent.clientWidth}px`;
+    this.canvas.style.height = `${this.DEFAULT_HEIGHT}px`;
 
-    this.background.setAttribute('width', this.width);
-    this.background.setAttribute('height', this.height);
-    this.backgroundCtx.scale(this.ratio, this.ratio);
+    this.canvas.setAttribute('width', this.width);
+    this.canvas.setAttribute('height', this.height);
+    this.ctx.scale(this.ratio, this.ratio);
   }
 
   drawBackground = () => {
@@ -120,64 +136,137 @@ class Chart {
     this.stepY = (this.ctxHeight - this.MARGIN_TOP - this.MARGIN_BOTTOM) / (this.linesY - 1);
 
     // clean context
-    this.backgroundCtx.clearRect(0, 0, this.ctxWidth, this.ctxHeight);
+    this.ctx.clearRect(0, 0, this.ctxWidth, this.ctxHeight);
 
     // vertical description
     const textX = (this.DEFAULT_HEIGHT - this.MARGIN_BOTTOM) / -2;
     const textY = this.MARGIN_LEFT - 39;
 
-    this.backgroundCtx.fillStyle = '#000';
-    this.backgroundCtx.save();
-    this.backgroundCtx.rotate(270 * Math.PI / 180);
-    this.backgroundCtx.textAlign = 'center';
-    this.backgroundCtx.font = "20px sans-serif";
-    this.backgroundCtx.fillText('Temperature °C', textX, textY);
-    this.backgroundCtx.restore();
+    this.ctx.fillStyle = '#000';
+    this.ctx.save();
+    this.ctx.rotate(270 * Math.PI / 180);
+    this.ctx.textAlign = 'center';
+    this.ctx.font = "20px sans-serif";
+    this.ctx.fillText('Temperature °C', textX, textY);
+    this.ctx.restore();
 
     // horizontal lines
-    this.backgroundCtx.font = "12px sans-serif";
+    this.ctx.font = "12px sans-serif";
     for (let i = 0; i < this.linesY; i++) {
       const y = this.MARGIN_TOP + this.stepY * i;
 
-      this.backgroundCtx.beginPath();
-      this.backgroundCtx.lineWidth = i < (this.linesY - 1) ? .2 : 1;
-      this.backgroundCtx.moveTo(this.MARGIN_LEFT - 7, y);
-      this.backgroundCtx.lineTo(this.ctxWidth - this.MARGIN_RIGHT, y);
-      this.backgroundCtx.stroke();
-      this.backgroundCtx.closePath();
+      this.ctx.beginPath();
+      this.ctx.lineWidth = i < (this.linesY - 1) ? .2 : 1;
+      this.ctx.moveTo(this.MARGIN_LEFT - 7, y);
+      this.ctx.lineTo(this.ctxWidth - this.MARGIN_RIGHT, y);
+      this.ctx.stroke();
+      this.ctx.closePath();
     }
 
     // vertical lines
     for (let i = 0; i < this.linesX; i ++) {
       const x = this.MARGIN_LEFT + this.stepX * i;
 
-      this.backgroundCtx.beginPath();
-      this.backgroundCtx.lineWidth = i > 0 ? .2 : 1;
-      this.backgroundCtx.moveTo(x, this.MARGIN_TOP);
-      this.backgroundCtx.lineTo(x, this.ctxHeight - this.MARGIN_BOTTOM);
-      this.backgroundCtx.stroke();
-      this.backgroundCtx.closePath();
+      this.ctx.beginPath();
+      this.ctx.lineWidth = i > 0 ? .2 : 1;
+      this.ctx.moveTo(x, this.MARGIN_TOP);
+      this.ctx.lineTo(x, this.ctxHeight - this.MARGIN_BOTTOM);
+      this.ctx.stroke();
+      this.ctx.closePath();
     }
   }
 
   drawSelector = () => {
-    this.backgroundCtx.beginPath();
-    this.backgroundCtx.fillStyle = 'rgba(0, 0, 255, .1)';
-    this.backgroundCtx.fillRect(
+    this.ctx.beginPath();
+    this.ctx.fillStyle = 'rgba(0, 0, 255, .1)';
+    this.ctx.fillRect(
       this.recX1,
       this.MARGIN_TOP,
       this.recX2 - this.recX1,
       this.ctxHeight - this.MARGIN_BOTTOM - this.MARGIN_TOP
     );
-    this.backgroundCtx.stroke();
-    this.backgroundCtx.closePath();
+    this.ctx.stroke();
+    this.ctx.closePath();
+  }
 
-    // console.log('selector', this.recX1, this.recX2);
+  drawChart = () => {
+    // draw lines
+    this.ctx.lineWidth = 1;
+    for (let i = 0; i < this.points[0].y.length; i++) {
+      this.ctx.beginPath();
+      this.ctx.strokeStyle = this.colors[i] || '#000';
+      this.ctx.moveTo(this.points[0].x, this.points[0].y[i]);
+      this.points.forEach(point => {
+        this.ctx.lineTo(point.x, point.y[i]);
+      });
+      this.ctx.stroke();
+      this.ctx.closePath();
+    }
+
+    // circles
+    this.points.forEach(point => {
+      point.y.forEach((y, i) => {
+        this.ctx.beginPath();
+        this.ctx.strokeStyle = this.colors[i] || '#000';
+        this.ctx.fillStyle = this.colors[i] || '#000';
+        this.ctx.arc(point.x, y, 5, 0, 2 * Math.PI);
+        this.ctx.fill();
+        this.ctx.stroke();
+        this.ctx.closePath();
+      });
+    });
+
+    this.ctx.strokeStyle = '#000';
+    this.ctx.fillStyle = '#000';
+
+    // y data
+    this.ctx.beginPath();
+    const stepYValue = (this.maxY - this.minY) / this.linesY;
+    for (let i = 0; i < this.linesY; i++) {
+      const text = ~~(this.minY + stepYValue * i);
+      this.ctx.fillText(`${text}°C`, this.MARGIN_LEFT - 30, this.ctxHeight - this.MARGIN_BOTTOM - this.stepY * i);
+    }
+    this.ctx.stroke();
+    this.ctx.closePath();
+
+    // x data
+    const stepXValue = (this.points[this.points.length - 1].time - this.points[0].time) / (this.linesX - 1);
+    for (let i = 0; i < this.linesX; i ++) {
+      const date = new Date(this.points[0].time + ~~(stepXValue * i));
+      this.ctx.save();
+      this.ctx.beginPath();
+      this.ctx.translate(this.MARGIN_LEFT - 35 + (i * this.stepX), this.ctxHeight);
+      this.ctx.rotate(300 * Math.PI / 180);
+      this.ctx.fillText(this.formatDate(date, true), 0, 0);
+      this.ctx.fillText(this.formatDate(date, false), 25, 12);
+      this.ctx.stroke();
+      this.ctx.closePath();
+      this.ctx.restore();    
+    }
+  }
+
+  resetPoints = () => {
+    this.points = this.rawPoints;
+    this.zoom = false;
+    this.draw();
+  }
+
+  filterPoints = () => {
+    const x1 = this.recX1 < this.recX2 ? this.recX1 : this.recX2;
+    const x2 = this.recX1 > this.recX2 ? this.recX1 : this.recX2;
+
+    const newPoints = this.points
+      .filter(point => point.x >= x1 && point.x <= x2);
+    
+    this.points = newPoints.length ? newPoints : this.points;
   }
 
   calcPoints = (points) => {
     const newPoints = [];
     const xRange = points[points.length - 1].time - points[0].time;
+
+    this.minY = points[0].value[0];
+    this.maxY = points[0].value[0];
 
     // calc 'x' and get min/max value
     points.forEach(point => {
@@ -185,7 +274,7 @@ class Chart {
   
       newPoints.push({
         ...point,
-        x: this.MARGIN_LEFT + ~~((time - points[0].time) * (this.ctxWidth - this.MARGIN_LEFT - this.MARGIN_RIGHT) / xRange),
+        x: this.MARGIN_LEFT + 15 + ~~((time - points[0].time) * (this.ctxWidth - this.MARGIN_LEFT - this.MARGIN_RIGHT - 30) / xRange),
       });
   
       values.forEach(value => {
@@ -210,62 +299,6 @@ class Chart {
     });
 
     return newPoints;
-  }
-
-  draw = (ctx, points, color) => {
-    // draw lines
-    ctx.lineWidth = 1;
-    for (let i = 0; i < points[0].y.length; i++) {
-      ctx.beginPath();
-      ctx.strokeStyle = color[i] || '#000';
-      ctx.moveTo(points[0].x, points[0].y[i]);
-      points.forEach(point => {
-        ctx.lineTo(point.x, point.y[i]);
-      });
-      ctx.stroke();
-      ctx.closePath();
-    }
-
-    // circles
-    points.forEach(point => {
-      point.y.forEach((y, i) => {
-        ctx.beginPath();
-        ctx.strokeStyle = color[i] || '#000';
-        ctx.fillStyle = color[i] || '#000';
-        ctx.arc(point.x, y, 5, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.stroke();
-        ctx.closePath();
-      });
-    });
-
-    ctx.strokeStyle = '#000';
-    ctx.fillStyle = '#000';
-
-    // y data
-    ctx.beginPath();
-    const stepYValue = (this.maxY - this.minY) / this.linesY;
-    for (let i = 0; i < this.linesY; i++) {
-      const text = ~~(this.minY + stepYValue * i);
-      ctx.fillText(`${text}°C`, this.MARGIN_LEFT - 30, this.ctxHeight - this.MARGIN_BOTTOM - this.stepY * i);
-    }
-    ctx.stroke();
-    ctx.closePath();
-
-    // x data
-    const stepXValue = (points[points.length - 1].time - points[0].time) / this.linesX;
-    for (let i = 0; i < this.linesX; i ++) {
-      const date = new Date(points[0].time + ~~(stepXValue * i));
-      ctx.save();
-      ctx.beginPath();
-      ctx.translate(this.MARGIN_LEFT - 35 + (i * this.stepX), this.ctxHeight);
-      ctx.rotate(300 * Math.PI / 180);
-      ctx.fillText(this.formatDate(date, true), 0, 0);
-      ctx.fillText(this.formatDate(date, false), 25, 12);
-      ctx.stroke();
-      ctx.closePath();
-      ctx.restore();    
-    }
   }
 
   /**

@@ -35,13 +35,11 @@ class Chart {
     this.isPressed = false;
     this.zoom = false;
 
+    this.pointerX = 0;
     this.linesY = 4;
     this.linesX = 7;
-  
     this.recX1 = 0;
     this.recX2 = 0;
-
-    this.pointerX = 0;
 
     // set styles
     buttonWrapper.style.display = 'flex';
@@ -79,12 +77,14 @@ class Chart {
 
   onMouseUp = () => {
     this.isPressed = false;
-    this.zoom = true;
     this.filterPoints();
     this.draw();
   }
 
   onMouseMove = ({ clientX, clientY }) => {
+    if (this.isPressed) {
+      this.zoom = true;
+    }
     this.pointerX = ~~(clientX - this.clientRect.left);
     this.pointerY = ~~(clientY - this.clientRect.top);
 
@@ -92,9 +92,9 @@ class Chart {
       this.recX2 = this.pointerX < this.MARGIN_LEFT
         ? this.MARGIN_LEFT
         : this.pointerX;
-      this.recX2 = this.pointerX > this.ctxWidth - this.MARGIN_RIGHT
+      this.recX2 = this.recX2 > this.ctxWidth - this.MARGIN_RIGHT
         ? this.ctxWidth - this.MARGIN_RIGHT
-        : this.pointerX;
+        : this.recX2;
 
       this.draw(this.ctx, this.points, this.colors);
       this.drawSelector();

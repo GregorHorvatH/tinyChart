@@ -41,6 +41,8 @@ class Chart {
     this.recX1 = 0;
     this.recX2 = 0;
 
+    this.pointerX = 0;
+
     // set styles
     buttonWrapper.style.display = 'flex';
     buttonWrapper.style.flexDirection = 'column';
@@ -58,7 +60,7 @@ class Chart {
 
     this.canvas.addEventListener('touchstart', this.onTouchStart);
     this.canvas.addEventListener('touchmove', this.onTouchMove);
-    this.canvas.addEventListener('touchend', this.onMouseUp);
+    this.canvas.addEventListener('touchend', this.onTouchEnd);
 
     resetButton.addEventListener('click', this.resetPoints);
   }
@@ -82,31 +84,35 @@ class Chart {
     this.draw();
   }
 
-  onMouseMove = ({ clientX }) => {
-    if (this.isPressed) {
-      this.recX2 = ~~clientX - this.clientRect.left;
-      this.recX2 = this.recX2 < this.MARGIN_LEFT
-        ? this.MARGIN_LEFT
-        : this.recX2;
-      this.recX2 = this.recX2 > this.ctxWidth - this.MARGIN_RIGHT
-      ? this.ctxWidth - this.MARGIN_RIGHT
-      : this.recX2;
+  onMouseMove = ({ clientX, clientY }) => {
+    this.pointerX = ~~(clientX - this.clientRect.left);
+    this.pointerY = ~~(clientY - this.clientRect.top);
 
-      this.drawBackground();
+    if (this.isPressed) {
+      this.recX2 = this.pointerX < this.MARGIN_LEFT
+        ? this.MARGIN_LEFT
+        : this.pointerX;
+      this.recX2 = this.pointerX > this.ctxWidth - this.MARGIN_RIGHT
+        ? this.ctxWidth - this.MARGIN_RIGHT
+        : this.pointerX;
+
       this.draw(this.ctx, this.points, this.colors);
       this.drawSelector();
+    } else {
+      this.draw(this.ctx, this.points, this.colors);
     }
   }
 
   onTouchStart = ({ touches }) => {
-    this.isPressed = true;
     this.onMouseDown({ clientX: touches[0].clientX });
   }
 
   onTouchMove = ({ touches }) => {
-    if (this.isPressed) {
-      this.onMouseMove({ clientX: touches[0].clientX });
-    }
+    this.onMouseMove({ clientX: touches[0].clientX, clientY: touches[0].clientY });
+  }
+
+  onTouchEnd = () => {
+    this.onMouseUp();
   }
 
   draw = () => {
@@ -151,7 +157,6 @@ class Chart {
     this.ctx.restore();
 
     // horizontal lines
-    this.ctx.font = "12px sans-serif";
     for (let i = 0; i < this.linesY; i++) {
       const y = this.MARGIN_TOP + this.stepY * i;
 
@@ -190,7 +195,7 @@ class Chart {
   }
 
   drawChart = () => {
-    // draw lines
+    // draw chart lines
     this.ctx.lineWidth = 1;
     for (let i = 0; i < this.points[0].y.length; i++) {
       this.ctx.beginPath();
@@ -203,13 +208,27 @@ class Chart {
       this.ctx.closePath();
     }
 
-    // circles
+    // draw chart selected line
+    this.points.forEach(point => {
+      if (point.isSelected) {
+        this.ctx.beginPath();
+        this.ctx.lineWidth = 3;
+        this.ctx.strokeStyle = '#ebc1be';
+        this.ctx.moveTo(point.x, this.MARGIN_TOP + 1);
+        this.ctx.lineTo(point.x, this.ctxHeight - this.MARGIN_BOTTOM - 1);
+        this.ctx.stroke();
+        this.ctx.closePath();
+      }
+    });
+
+    // draw chart circles
+    this.ctx.lineWidth = 1;
     this.points.forEach(point => {
       point.y.forEach((y, i) => {
         this.ctx.beginPath();
         this.ctx.strokeStyle = this.colors[i] || '#000';
         this.ctx.fillStyle = this.colors[i] || '#000';
-        this.ctx.arc(point.x, y, 5, 0, 2 * Math.PI);
+        this.ctx.arc(point.x, y, point.isSelected ? 7 : 5, 0, 2 * Math.PI);
         this.ctx.fill();
         this.ctx.stroke();
         this.ctx.closePath();
@@ -220,8 +239,9 @@ class Chart {
     this.ctx.fillStyle = '#000';
 
     // y data
+    this.ctx.font = "12px sans-serif";
     this.ctx.beginPath();
-    const stepYValue = (this.maxY - this.minY) / this.linesY;
+    const stepYValue = (this.maxY - this.minY) / (this.linesY - 1);
     for (let i = 0; i < this.linesY; i++) {
       const text = ~~(this.minY + stepYValue * i);
       this.ctx.fillText(`${text}°C`, this.MARGIN_LEFT - 30, this.ctxHeight - this.MARGIN_BOTTOM - this.stepY * i);
@@ -230,6 +250,7 @@ class Chart {
     this.ctx.closePath();
 
     // x data
+    this.ctx.font = "12px sans-serif";
     const stepXValue = (this.points[this.points.length - 1].time - this.points[0].time) / (this.linesX - 1);
     for (let i = 0; i < this.linesX; i ++) {
       const date = new Date(this.points[0].time + ~~(stepXValue * i));
@@ -237,12 +258,59 @@ class Chart {
       this.ctx.beginPath();
       this.ctx.translate(this.MARGIN_LEFT - 35 + (i * this.stepX), this.ctxHeight);
       this.ctx.rotate(300 * Math.PI / 180);
-      this.ctx.fillText(this.formatDate(date, true), 0, 0);
-      this.ctx.fillText(this.formatDate(date, false), 25, 12);
+      this.ctx.fillText(this.formatDateTime(date, true), 0, 0);
+      this.ctx.fillText(this.formatDateTime(date), 25, 12);
       this.ctx.stroke();
       this.ctx.closePath();
       this.ctx.restore();    
     }
+
+    // draw info box
+    this.points.forEach(point => {
+      if (point.isSelected) {
+        const { time, value: values } = point;
+        const marginTop = 10;
+        const boxWidth = 140;
+        const lineHeight = 20;
+        const height = point.y.length * lineHeight + lineHeight + marginTop;
+        const x = this.pointerX > this.ctxWidth - this.MARGIN_RIGHT - boxWidth
+          ? -5 - boxWidth
+          : 10;
+        const date = new Date(time);
+        const dateText = `${this.formatDateTime(date, true)} ${this.formatDateTime(date)}`;
+        const headerY = this.pointerY + marginTop + lineHeight;
+        let valueY = this.pointerY + marginTop + lineHeight * 2;
+
+        this.ctx.beginPath();
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeStyle = '#0000ff';
+        this.ctx.fillStyle = 'rgba(255, 255, 255, .9)';
+        this.ctx.fillRect(this.pointerX + x, this.pointerY + 10, boxWidth, height);
+        this.ctx.rect(this.pointerX + x, this.pointerY + 10, boxWidth, height);
+
+        // header
+        this.ctx.fillStyle = '#000';
+        this.ctx.font = "bold 14px sans-serif";
+        this.ctx.fillText(dateText, this.pointerX + x + 5, headerY);
+
+        // values
+        values
+          .map((value, i) => ({
+            value,
+            color: this.colors[i] || '#000',
+            input: i + 1
+          }))
+          .sort((a, b) => b.value - a.value)
+          .forEach(({ value, color, input }) => {
+            this.ctx.fillStyle = color;
+            this.ctx.fillText(`t${input}: ${value} °C`, this.pointerX + x + 5, valueY);
+            valueY += lineHeight;
+          });
+
+        this.ctx.stroke();
+        this.ctx.closePath();
+      }
+    });
   }
 
   resetPoints = () => {
@@ -271,10 +339,12 @@ class Chart {
     // calc 'x' and get min/max value
     points.forEach(point => {
       const { time, value: values } = point;
+      const x = this.MARGIN_LEFT + 15 + ~~((time - points[0].time) * (this.ctxWidth - this.MARGIN_LEFT - this.MARGIN_RIGHT - 30) / xRange);
   
       newPoints.push({
         ...point,
-        x: this.MARGIN_LEFT + 15 + ~~((time - points[0].time) * (this.ctxWidth - this.MARGIN_LEFT - this.MARGIN_RIGHT - 30) / xRange),
+        isSelected: this.pointerX >= x - 10 && this.pointerX <= x + 10,
+        x,
       });
   
       values.forEach(value => {
@@ -306,7 +376,7 @@ class Chart {
    * @param {timestamp} date
    * @param {boolean} isDate: true - date, false - time
    */
-  formatDate = (date, isDate = true) => {
+  formatDateTime = (date, isDate = false) => {
     const year = date.getFullYear();
     const month = date.getMonth();
     const day = date.getDate();
@@ -331,7 +401,7 @@ const points = [
   {time: 1576276373606, value: [3, 15, 8]},
   {time: 1576276497992, value: [6, 17, 7]},
   {time: 1576276606154, value: [4, 13, 8]},
-  {time: 1576276823890, value: [7, 8, 9]},
+  {time: 1576276823890, value: [12, 8, 9]},
   {time: 1576277296946, value: [6, 9, 10]},
   {time: 1576277414295, value: [0, 7, 15]},
   {time: 1576277727236, value: [-2, 11, 13]},

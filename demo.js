@@ -277,7 +277,6 @@ class Chart {
           ? -5 - boxWidth
           : 10;
         const date = new Date(time);
-        const dateText = `${this.formatDateTime(date, true)} ${this.formatDateTime(date)}`;
         const headerY = this.pointerY + marginTop + lineHeight;
         let valueY = this.pointerY + marginTop + lineHeight * 2;
 
@@ -290,8 +289,12 @@ class Chart {
 
         // header
         this.ctx.fillStyle = '#000';
+        this.ctx.font = "14px sans-serif";
+        this.ctx.fillText(this.formatDateTime(date, true), this.pointerX + x + 5, headerY);
+
+        this.ctx.fillStyle = '#ff0000';
         this.ctx.font = "bold 14px sans-serif";
-        this.ctx.fillText(dateText, this.pointerX + x + 5, headerY);
+        this.ctx.fillText(this.formatDateTime(date), this.pointerX + x + 80, headerY);
 
         // values
         values
@@ -302,8 +305,23 @@ class Chart {
           }))
           .sort((a, b) => b.value - a.value)
           .forEach(({ value, color, input }) => {
+            const label = `temp ${input}:`;
+            const lw = this.ctx.measureText(label).width + 10;
+
             this.ctx.fillStyle = color;
-            this.ctx.fillText(`t${input}: ${value} °C`, this.pointerX + x + 5, valueY);
+            this.ctx.font = "14px sans-serif";
+
+            this.ctx.shadowColor = '#777777';
+            this.ctx.shadowOffsetX = 1;
+            this.ctx.shadowOffsetY = 1;
+            this.ctx.shadowBlur = 1;
+            this.ctx.fillText(label, this.pointerX + x + 5, valueY);
+
+            this.ctx.fillStyle = '#000';
+            this.ctx.shadowOffsetX = 0;
+            this.ctx.shadowOffsetY = 0;
+            this.ctx.font = "bold 14px sans-serif";
+            this.ctx.fillText(`${value} °C`, this.pointerX + x + lw, valueY);
             valueY += lineHeight;
           });
 

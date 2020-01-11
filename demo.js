@@ -28,6 +28,7 @@ class Chart {
       '#7DA2A9', // grey (light)
     ];
     this.labels = options.labels || [];
+    this.symbols = options.symbols || [];
 
     this.ratio = window.devicePixelRatio || 1;
     this.canvas = document.createElement('canvas');
@@ -59,6 +60,7 @@ class Chart {
     buttonWrapper.style.display = 'flex';
     buttonWrapper.style.flexDirection = 'column';
     resetButton.style.marginRight = `${this.MARGIN_RIGHT}px`;
+    resetButton.style.marginLeft = `${this.MARGIN_LEFT}px`;
 
     // init
     this.draw();
@@ -167,7 +169,8 @@ class Chart {
     this.ctx.rotate(270 * Math.PI / 180);
     this.ctx.textAlign = 'center';
     this.ctx.font = "20px sans-serif";
-    this.ctx.fillText('Temperature °C', textX, textY);
+    this.ctx.fillStyle = '#00458B';
+    this.ctx.fillText(this.options.description || '', textX, textY);
     this.ctx.restore();
 
     // horizontal lines
@@ -360,9 +363,10 @@ class Chart {
             value,
             color: this.colors[i] || '#000',
             label: `${this.labels[i] || 'input ' + (i + 1)}`,
+            symbol: this.symbols[i] || ''
           }))
           .sort((a, b) => b.value - a.value)
-          .forEach(({ value, color, label }) => {
+          .forEach(({ value, color, label, symbol }) => {
             const lw = this.ctx.measureText(label).width + 10;
 
             this.ctx.fillStyle = color;
@@ -378,7 +382,7 @@ class Chart {
             this.ctx.shadowOffsetX = 0;
             this.ctx.shadowOffsetY = 0;
             this.ctx.font = "bold 14px sans-serif";
-            this.ctx.fillText(`${value} °C`, this.pointerX + x + lw, valueY);
+            this.ctx.fillText(`${value} ${symbol}`, this.pointerX + x + lw, valueY);
             valueY += lineHeight;
           });
 
@@ -486,5 +490,7 @@ const points = [
 ];
 
 const chart = new Chart('#tinyChart', points, {
+  description: 'Temperature °C',
   labels: ['temp 1', 'temp 2'],
+  symbols: ['°C', 'V', 'Ω'],
 });

@@ -5,16 +5,30 @@ class Chart {
     }
 
     // constants
-    this.DEFAULT_HEIGHT = 250;
+    this.DEFAULT_HEIGHT = 300;
     this.MARGIN_LEFT = 55;
     this.MARGIN_RIGHT = 10;
     this.MARGIN_TOP = 15;
-    this.MARGIN_BOTTOM = 60;
+    this.MARGIN_BOTTOM = 80;
 
     // set variables
     this.rawPoints = points;
     this.options = options;
-    this.colors = options.colors || ['#ffbf96', '#4d50ab', '#47915a'];
+    this.options.colors = options.colors || [];
+    this.colors = [
+      ...this.options.colors,
+      '#00458B', // blue (strong)
+      '#FB8122', // orange (strong)
+      '#3EB650', // green (strong)
+      '#5626C4', // violet (middle)
+      '#2CCCC3', // ocean (middle)
+      '#FCC133', // yellow (middle)
+      '#E5BACE', // pink (light)
+      '#8DA242', // olive (light)
+      '#7DA2A9', // grey (light)
+    ];
+    this.labels = options.labels || [];
+
     this.ratio = window.devicePixelRatio || 1;
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d');
@@ -256,7 +270,10 @@ class Chart {
       const date = new Date(this.points[0].time + ~~(stepXValue * i));
       this.ctx.save();
       this.ctx.beginPath();
-      this.ctx.translate(this.MARGIN_LEFT - 35 + (i * this.stepX), this.ctxHeight);
+      this.ctx.translate(
+        this.MARGIN_LEFT - 35 + (i * this.stepX),
+        this.ctxHeight - this.MARGIN_BOTTOM + 60
+      );
       this.ctx.rotate(300 * Math.PI / 180);
       this.ctx.fillText(this.formatDateTime(date, true), 0, 0);
       this.ctx.fillText(this.formatDateTime(date), 25, 12);
@@ -264,6 +281,47 @@ class Chart {
       this.ctx.closePath();
       this.ctx.restore();    
     }
+
+    // footer (history)
+    const line = 40;
+    const boxPlus = line * this.points[0].value.length;
+    let text = '';
+    let textX = 0;
+    this.ctx.font = "bold 14px sans-serif";
+    this.points[0].value
+      .map((_, i) => {
+        const label = `${this.labels[i] || 'input ' + (i + 1)}`;
+        text += label;
+
+        return {
+          color: this.colors[i] || '#000',
+          label,
+        };
+      })
+      .forEach((point, i) => {
+        const x = (this.ctxWidth - this.ctx.measureText(text).width - boxPlus) / 2;
+        textX += i ? this.ctx.measureText(point.label).width + line : line;
+
+        this.ctx.beginPath();
+        this.ctx.lineWidth = 1;
+        this.ctx.fillStyle = '#000';
+        this.ctx.fillText(
+          point.label,
+          x + textX,
+          this.ctxHeight - 4
+        );
+
+        this.ctx.lineWidth = 3;
+        this.ctx.fillStyle = this.colors[i];
+        this.ctx.strokeStyle = this.colors[i];
+        this.ctx.moveTo(x + textX - line + 10, this.ctxHeight - 8);
+        this.ctx.lineTo(x + textX - 5, this.ctxHeight - 8);
+        this.ctx.arc(x + textX - line + 10 + ((line - 15) / 2), this.ctxHeight - 8, 4, 0, 2 * Math.PI);
+        this.ctx.fill();
+
+        this.ctx.stroke();
+        this.ctx.closePath();  
+      });
 
     // draw info box
     this.points.forEach(point => {
@@ -301,11 +359,10 @@ class Chart {
           .map((value, i) => ({
             value,
             color: this.colors[i] || '#000',
-            input: i + 1
+            label: `${this.labels[i] || 'input ' + (i + 1)}`,
           }))
           .sort((a, b) => b.value - a.value)
-          .forEach(({ value, color, input }) => {
-            const label = `temp ${input}:`;
+          .forEach(({ value, color, label }) => {
             const lw = this.ctx.measureText(label).width + 10;
 
             this.ctx.fillStyle = color;
@@ -315,7 +372,7 @@ class Chart {
             this.ctx.shadowOffsetX = 1;
             this.ctx.shadowOffsetY = 1;
             this.ctx.shadowBlur = 1;
-            this.ctx.fillText(label, this.pointerX + x + 5, valueY);
+            this.ctx.fillText(`${label}:`, this.pointerX + x + 5, valueY);
 
             this.ctx.fillStyle = '#000';
             this.ctx.shadowOffsetX = 0;
@@ -428,4 +485,6 @@ const points = [
   {time: 1576280540169, value: [0, 13, 10]},
 ];
 
-const chart = new Chart('#tinyChart', points);
+const chart = new Chart('#tinyChart', points, {
+  labels: ['temp 1', 'temp 2'],
+});

@@ -4,13 +4,6 @@ class Chart {
       throw new Error('Chart selector is mandatory, e.g. "#tinyChart"');
     }
 
-    // constants
-    this.DEFAULT_HEIGHT = 300;
-    this.MARGIN_LEFT = 55;
-    this.MARGIN_RIGHT = 10;
-    this.MARGIN_TOP = 15;
-    this.MARGIN_BOTTOM = 80;
-
     // set variables
     this.rawPoints = points;
     this.options = options;
@@ -29,6 +22,8 @@ class Chart {
     ];
     this.labels = options.labels || [];
     this.symbols = options.symbols || [];
+    this.chartTypes = options.chartTypes || [];
+    this.delimiters = options.delimiters || [];
 
     this.ratio = window.devicePixelRatio || 1;
     this.canvas = document.createElement('canvas');
@@ -56,6 +51,13 @@ class Chart {
     this.recX1 = 0;
     this.recX2 = 0;
     this.zeroY = 0;
+
+    // constants
+    this.DEFAULT_HEIGHT = 300;
+    this.MARGIN_LEFT = this.ctx.measureText(this.symbols[0]).width + 45;
+    this.MARGIN_RIGHT = 10;
+    this.MARGIN_TOP = 15;
+    this.MARGIN_BOTTOM = 80;
 
     // set styles
     buttonWrapper.style.display = 'flex';
@@ -163,7 +165,7 @@ class Chart {
 
     // vertical description
     const textX = (this.DEFAULT_HEIGHT - this.MARGIN_BOTTOM) / -2;
-    const textY = this.MARGIN_LEFT - 39;
+    const textY = 15;
 
     this.ctx.fillStyle = '#000';
     this.ctx.save();
@@ -219,9 +221,21 @@ class Chart {
       this.ctx.beginPath();
       this.ctx.strokeStyle = this.colors[i] || '#000';
       this.ctx.moveTo(this.points[0].x, this.points[0].y[i]);
-      this.points.forEach(point => {
-        this.ctx.lineTo(point.x, point.y[i]);
-      });
+
+      for (let j = 0; j < this.points.length; j++) {
+        if (!j) {
+          continue;
+        }
+        switch (this.chartTypes[i]) {
+          case (1):
+            this.ctx.lineTo(this.points[j].x, this.points[j - 1].y[i]);
+            this.ctx.lineTo(this.points[j].x, this.points[j].y[i]);
+            break;
+          default:
+            this.ctx.lineTo(this.points[j].x, this.points[j].y[i]);
+            break;
+        }
+      }
       this.ctx.stroke();
       this.ctx.closePath();
     }
@@ -275,7 +289,12 @@ class Chart {
     const stepYValue = (this.maxY - this.minY) / (this.linesY - 1);
     for (let i = 0; i < this.linesY; i++) {
       const text = ~~(this.minY + stepYValue * i);
-      this.ctx.fillText(`${text}°C`, this.MARGIN_LEFT - 30, this.ctxHeight - this.MARGIN_BOTTOM - this.stepY * i);
+      const label = `${text}${this.symbols[0] || ''}`;
+      this.ctx.fillText(
+        label,
+        this.MARGIN_LEFT - this.ctx.measureText(label).width - 3,
+        this.ctxHeight - this.MARGIN_BOTTOM - this.stepY * i
+      );
     }
     this.ctx.stroke();
     this.ctx.closePath();
@@ -441,12 +460,15 @@ class Chart {
         x,
       });
   
-      values.forEach(value => {
-        if (value < this.minY) {
-          this.minY = value;
+      values.forEach((value, i) => {
+        const delimiter = this.delimiters[i] || 1;
+        const newValue = value / delimiter;
+
+        if (newValue < this.minY) {
+          this.minY = newValue;
         }
-        if (value > this.maxY) {
-          this.maxY = value;
+        if (newValue > this.maxY) {
+          this.maxY = newValue;
         }
       });
     });
@@ -457,8 +479,9 @@ class Chart {
       const { value: values } = point;
       point.y = [];
 
-      values.forEach(value => {
-        point.y.push(this.calcY(value));
+      values.forEach((value, i) => {
+        const delimiter = this.delimiters[i] || 1;
+        point.y.push(this.calcY(value / delimiter));
       });
     });
 
@@ -499,21 +522,23 @@ class Chart {
 // =========== DEMO ===========
 const points = [
   {time: 1576276373606, value: [3, 15, 8, 40]},
-  {time: 1576276497992, value: [6, 17, 7, 40]},
-  {time: 1576276606154, value: [4, 13, 8, 80]},
+  {time: 1576276497992, value: [6, 17, 7, 80]},
+  {time: 1576276606154, value: [4, 13, 8, 40]},
   {time: 1576276823890, value: [12, 8, 9, 80]},
-  {time: 1576277296946, value: [6, 9, 10, 80]},
+  {time: 1576277296946, value: [6, 9, 10, 40]},
   {time: 1576277414295, value: [0, 7, 15, 80]},
   {time: 1576277727236, value: [-2, 11, 13, 40]},
-  {time: 1576278727236, value: [5, 15, 12, 40]},
+  {time: 1576278727236, value: [5, 15, 12, 80]},
   {time: 1576279500737, value: [-5, 17, 11, 40]},
-  {time: 1576280540169, value: [0, 13, 10, 40]},
+  {time: 1576280540169, value: [0, 13, 10, 80]},
 ];
 
 new Chart('#tinyChart1', points, {
   description: 'Temperature °C',
   labels: ['temp 1', 'temp 2', 'temp 3', 'Watt'],
   symbols: ['°C', '°C', '°C', 'W'],
+  chartTypes: [0, 0, 0, 1],
+  delimiters: [1, 1, 1, 2],
 });
 
 // new Chart('#tinyChart2', points, {

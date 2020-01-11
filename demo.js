@@ -55,6 +55,7 @@ class Chart {
     this.linesX = 7;
     this.recX1 = 0;
     this.recX2 = 0;
+    this.zeroY = 0;
 
     // set styles
     buttonWrapper.style.display = 'flex';
@@ -225,6 +226,19 @@ class Chart {
       this.ctx.closePath();
     }
 
+    // draw zero line
+    if (this.zeroY < this.ctxHeight - this.MARGIN_BOTTOM) {
+      this.ctx.beginPath();
+      this.ctx.lineWidth = 1;
+      this.ctx.strokeStyle = '#4aa8ff';
+      this.ctx.setLineDash([5, 10]);
+      this.ctx.moveTo(this.MARGIN_LEFT + 1, this.zeroY);
+      this.ctx.lineTo(this.ctxWidth - this.MARGIN_RIGHT - 1, this.zeroY);
+      this.ctx.stroke();
+      this.ctx.closePath();
+      this.ctx.setLineDash([]);
+    }
+
     // draw chart selected line
     this.points.forEach(point => {
       if (point.isSelected) {
@@ -245,7 +259,7 @@ class Chart {
         this.ctx.beginPath();
         this.ctx.strokeStyle = this.colors[i] || '#000';
         this.ctx.fillStyle = this.colors[i] || '#000';
-        this.ctx.arc(point.x, y, point.isSelected ? 7 : 5, 0, 2 * Math.PI);
+        this.ctx.arc(point.x, y, point.isSelected ? 6 : 4, 0, 2 * Math.PI);
         this.ctx.fill();
         this.ctx.stroke();
         this.ctx.closePath();
@@ -286,45 +300,46 @@ class Chart {
     }
 
     // footer (history)
-    const line = 40;
-    const boxPlus = line * this.points[0].value.length;
-    let text = '';
+    const line = 50;
+    let boxSize = 0;
     let textX = 0;
+
     this.ctx.font = "bold 14px sans-serif";
-    this.points[0].value
-      .map((_, i) => {
-        const label = `${this.labels[i] || 'input ' + (i + 1)}`;
-        text += label;
+    for (let i = 0; i < this.points[0].value.length; i++) {
+      const label = `${this.labels[i] || 'input ' + (i + 1)}`;
+      boxSize += this.ctx.measureText(label).width + line;
+      this.labels[i] = this.labels[i] || `input ${i + 1}`
+    }
 
-        return {
-          color: this.colors[i] || '#000',
-          label,
-        };
-      })
-      .forEach((point, i) => {
-        const x = (this.ctxWidth - this.ctx.measureText(text).width - boxPlus) / 2;
-        textX += i ? this.ctx.measureText(point.label).width + line : line;
+    const boxX = (this.ctxWidth - boxSize) / 2;
+    for (let i = 0; i < this.points[0].value.length; i++) {
+      const marginLeft = 10;
+      const marginRight = 5;
+      textX += i ? this.ctx.measureText(this.labels[i - 1]).width + line : line;
 
-        this.ctx.beginPath();
-        this.ctx.lineWidth = 1;
-        this.ctx.fillStyle = '#000';
-        this.ctx.fillText(
-          point.label,
-          x + textX,
-          this.ctxHeight - 4
-        );
+      this.ctx.beginPath();
+      this.ctx.lineWidth = 1;
+      this.ctx.fillStyle = '#000';
+      this.ctx.fillText(
+        this.labels[i],
+        boxX + textX,
+        this.ctxHeight - 4
+      );
 
-        this.ctx.lineWidth = 3;
-        this.ctx.fillStyle = this.colors[i];
-        this.ctx.strokeStyle = this.colors[i];
-        this.ctx.moveTo(x + textX - line + 10, this.ctxHeight - 8);
-        this.ctx.lineTo(x + textX - 5, this.ctxHeight - 8);
-        this.ctx.arc(x + textX - line + 10 + ((line - 15) / 2), this.ctxHeight - 8, 4, 0, 2 * Math.PI);
-        this.ctx.fill();
+      this.ctx.lineWidth = 3;
+      this.ctx.fillStyle = this.colors[i] || '#000';
+      this.ctx.strokeStyle = this.colors[i] || '#000';
+      this.ctx.moveTo(boxX + textX - line + marginLeft, this.ctxHeight - 8);
+      this.ctx.lineTo(boxX + textX - marginRight, this.ctxHeight - 8);
+      this.ctx.arc(
+        boxX + textX - line + marginLeft + ((line - marginLeft - marginRight) / 2),
+        this.ctxHeight - 8,
+        4, 0, 2 * Math.PI);
+      this.ctx.fill();
 
-        this.ctx.stroke();
-        this.ctx.closePath();  
-      });
+      this.ctx.stroke();
+      this.ctx.closePath();
+    }
 
     // draw info box
     this.points.forEach(point => {
@@ -415,7 +430,7 @@ class Chart {
     this.minY = points[0].value[0];
     this.maxY = points[0].value[0];
 
-    // calc 'x' and get min/max value
+    // calc 'x' and get minY/maxY value
     points.forEach(point => {
       const { time, value: values } = point;
       const x = this.MARGIN_LEFT + 15 + ~~((time - points[0].time) * (this.ctxWidth - this.MARGIN_LEFT - this.MARGIN_RIGHT - 30) / xRange);
@@ -437,17 +452,23 @@ class Chart {
     });
   
     // calc 'y'
-    const yRange = (this.maxY - this.minY);
+    this.zeroY = this.calcY(0);
     newPoints.forEach(point => {
       const { value: values } = point;
       point.y = [];
 
       values.forEach(value => {
-        point.y.push(this.ctxHeight - ~~((value - this.minY) * (this.ctxHeight - this.MARGIN_TOP - this.MARGIN_BOTTOM) / yRange) - this.MARGIN_BOTTOM);
+        point.y.push(this.calcY(value));
       });
     });
 
     return newPoints;
+  }
+
+  calcY = (value) => {
+    const yRange = (this.maxY - this.minY);
+
+    return this.ctxHeight - ~~((value - this.minY) * (this.ctxHeight - this.MARGIN_TOP - this.MARGIN_BOTTOM) / yRange) - this.MARGIN_BOTTOM;
   }
 
   /**
@@ -477,20 +498,26 @@ class Chart {
 
 // =========== DEMO ===========
 const points = [
-  {time: 1576276373606, value: [3, 15, 8]},
-  {time: 1576276497992, value: [6, 17, 7]},
-  {time: 1576276606154, value: [4, 13, 8]},
-  {time: 1576276823890, value: [12, 8, 9]},
-  {time: 1576277296946, value: [6, 9, 10]},
-  {time: 1576277414295, value: [0, 7, 15]},
-  {time: 1576277727236, value: [-2, 11, 13]},
-  {time: 1576278727236, value: [5, 15, 12]},
-  {time: 1576279500737, value: [-5, 17, 11]},
-  {time: 1576280540169, value: [0, 13, 10]},
+  {time: 1576276373606, value: [3, 15, 8, 40]},
+  {time: 1576276497992, value: [6, 17, 7, 40]},
+  {time: 1576276606154, value: [4, 13, 8, 80]},
+  {time: 1576276823890, value: [12, 8, 9, 80]},
+  {time: 1576277296946, value: [6, 9, 10, 80]},
+  {time: 1576277414295, value: [0, 7, 15, 80]},
+  {time: 1576277727236, value: [-2, 11, 13, 40]},
+  {time: 1576278727236, value: [5, 15, 12, 40]},
+  {time: 1576279500737, value: [-5, 17, 11, 40]},
+  {time: 1576280540169, value: [0, 13, 10, 40]},
 ];
 
-const chart = new Chart('#tinyChart', points, {
+new Chart('#tinyChart1', points, {
   description: 'Temperature °C',
-  labels: ['temp 1', 'temp 2'],
-  symbols: ['°C', 'V', 'Ω'],
+  labels: ['temp 1', 'temp 2', 'temp 3', 'Watt'],
+  symbols: ['°C', '°C', '°C', 'W'],
 });
+
+// new Chart('#tinyChart2', points, {
+//   description: 'Temperature °C',
+//   labels: ['temp 1', 'temp 2', 'temp 3'],
+//   symbols: ['°C', '°C', '°C'],
+// });
